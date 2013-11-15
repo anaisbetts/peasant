@@ -36,11 +36,11 @@ namespace Peasant.Models
 
         long nextBuildId;
 
-        public BuildQueue(IBlobCache cache, GitHubClient githubClient, Func<QueueItem, string> processBuildFunc = null)
+        public BuildQueue(IBlobCache cache, GitHubClient githubClient, Func<QueueItem, Task<string>> processBuildFunc = null)
         {
             blobCache = cache;
             client = githubClient;
-            this.processBuildFunc = processBuildFunc;
+            this.processBuildFunc = processBuildFunc ?? processBuild;
         }
 
         public IObservable<QueueItem> Enqueue(string repoUrl, string sha1, string buildScriptUrl)
@@ -81,5 +81,48 @@ namespace Peasant.Models
             return ret.Connect();
         }
 
+        async Task<string> processBuild(QueueItem queueItem)
+        {
+            var orgs = await client.Organization.GetAllForCurrent();
+
+            var target = Directory.CreateDirectory(Path.GetTempPath() + "\\" + Guid.NewGuid().ToString());
+
+            await Task.Run(() => {
+                var creds = new LibGit2Sharp.Credentials() { Username = client.Credentials.Login, Password = client.Credentials.Password };
+                LibGit2Sharp.Repository.Clone(queueItem.RepoUrl, target.FullName, credentials: creds);
+            });
+
+            throw new NotImplementedException();
+        }
+
+        async Task<string> validateBuildUrl(string buildUrl)
+        {
+            var m = Regex.Match(buildUrl.ToLowerInvariant(), @"https://github.com/(\w+)/(\w+)");
+            if (!m.Success) {
+                goto fail;
+            }
+
+            var org = m.Captures[1].Value;
+            var repo = m.Captures[2].Value;
+
+            // Anything from your own repo is :cool:
+            if (org == client.Credentials.Login) {
+                return null;
+            }
+
+            var repoInfo = default(Repository);
+            try {
+                // XXX: This needs to be a more thorough check, this means any
+                // public repo can be used.
+                repoInfo = await client.Repository.Get(org, repo);
+            } catch (Exception ex) {
+                goto fail;
+            }
+
+            if (repoInfo != null) return null;
+
+        fail:
+            return "Build URL must be hosted on a repo or organization you are a member of and that you have made at least one commit to.";
+        }
     }
 }
