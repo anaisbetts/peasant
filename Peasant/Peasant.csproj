@@ -96,6 +96,7 @@
   <ItemGroup>
     <Compile Include="Bootstrapper.cs" />
     <Compile Include="Helpers\AuthenticationCallbackProvider.cs" />
+    <Compile Include="Helpers\ObservableProcess.cs" />
     <Compile Include="IndexModule.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

@@ -5,6 +5,7 @@ using SimpleAuthentication.Core;
 using System.Reactive.Linq;
 using Akavache;
 using System.Threading.Tasks;
+using GitHub.Helpers;
 
 namespace Peasant
 {
