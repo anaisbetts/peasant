@@ -2,12 +2,15 @@
 using Nancy;
 using Nancy.Responses;
 using SimpleAuthentication.Core;
+using System.Linq;
 using System.Reactive.Linq;
 using Akavache;
 using System.Threading.Tasks;
 using GitHub.Helpers;
 using Octokit;
 using System.Net.Http.Headers;
+using System.IO;
+using System.Collections.Generic;
 
 namespace Peasant
 {
@@ -29,26 +32,51 @@ namespace Peasant
     {
         public IndexModule()
         {
-            Get["/", runAsync: true] = async(x, ct) => {
+            Get["/", runAsync: true] = async(rq, ct) => {
                 var user = await ensureAuthenticated(Context);
                 if (user == null) return new RedirectResponse("/authentication/redirect/github");
 
-                var client = new GitHubClient(
-                    new ProductHeaderValue("Peasant", "0.0.1"), 
-                    new ReturnTheDamnCredentialsStore(new Credentials(user.UserInformation.UserName, user.AccessToken.PublicToken)));
-
-                var orgs = await client.Organization.GetAllForCurrent();
 
                 return View["index"];
             };
 
-            Get["/post-receive", runAsync: true] = async (x, ct) => {
+            Post["/post-receive", runAsync: true] = async (rq, ct) => {
                 // 1. Grab out params
                 // 1. Determine clone target directory
                 // 1. Do the clone / fetch
                 // 1. Do a hard reset + clean -xdf
                 // 1. Download build script to target directory
                 // 1. Set up environment variables, kick off build script
+
+                var user = default(AuthenticatedClient);
+                try {
+                    user = await BlobCache.Secure.GetObjectAsync<AuthenticatedClient>("build-user");
+                } catch (KeyNotFoundException) {
+                    return 401;
+                }
+
+                // XXX: Dummy sample code follows
+
+                var username = user.UserInformation.UserName;
+                var password = user.AccessToken.PublicToken; 
+                var client = new GitHubClient(
+                    new ProductHeaderValue("Peasant", "0.0.1"), 
+                    new ReturnTheDamnCredentialsStore(new Credentials(username, password)));
+
+                var orgs = await client.Organization.GetAllForCurrent();
+                var repos = await client.Repository.GetAllForOrg(orgs.Skip(1).First().Login);
+
+                var target = Directory.CreateDirectory(Path.GetTempPath() + "\\" + Guid.NewGuid().ToString());
+                var url = repos.First(x => x.Private).CloneUrl;
+
+                if (ct.IsCancellationRequested) {
+                    return 500;
+                }
+
+                await Task.Run(() => {
+                    var creds = new LibGit2Sharp.Credentials() { Username = username, Password = password };
+                    LibGit2Sharp.Repository.Clone(url, target.FullName, credentials: creds);
+                });
 
                 return 201;
             };

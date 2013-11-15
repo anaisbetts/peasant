@@ -18,6 +18,8 @@ namespace Peasant.Helpers
             var sessionKey = "Session_" + model.AuthenticatedClient.AccessToken.PublicToken;
             BlobCache.Secure.InsertObject(sessionKey, model.AuthenticatedClient, TimeSpan.FromDays(1)).First();
 
+            BlobCache.Secure.GetOrFetchObject("build-user", () => Observable.Return(model.AuthenticatedClient));
+
             nancyModule.Session["User"] = sessionKey;
             return new RedirectResponse("/");
         }
