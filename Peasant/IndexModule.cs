@@ -4,6 +4,7 @@ using Nancy.Responses;
 using SimpleAuthentication.Core;
 using System.Reactive.Linq;
 using Akavache;
+using System.Threading.Tasks;
 
 namespace Peasant
 {
@@ -11,32 +12,40 @@ namespace Peasant
     {
         public IndexModule()
         {
-            Get["/"] = parameters => {
+            Get["/", runAsync: true] = async(x, ct) => {
+                var ret = ensureAuthenticated(Context);
+                if (ret != null) return ret;
+
                 return View["index"];
             };
 
-            Before.AddItemToEndOfPipeline(ctx => {
-                if (ctx.Request.Session == null) {
-                    goto fail;
-                }
+            Get["/post-receive", runAsync: true] = async (x, ct) => {
+                return 201;
+            };
+        }
 
-                var sessionKey = (ctx.Request.Session["User"] ?? "").ToString(); ;
-                if (String.IsNullOrWhiteSpace(sessionKey)) {
-                    goto fail;
-                }
+        dynamic ensureAuthenticated(NancyContext ctx)
+        {
+            if (ctx.Request.Session == null) {
+                goto fail;
+            }
 
-                try {
-                    var user = BlobCache.Secure.GetObjectAsync<AuthenticatedClient>(sessionKey).First();
-                    if (user == null) goto fail;
-                } catch (Exception ex) {
-                    goto fail;
-                }
+            var sessionKey = (ctx.Request.Session["User"] ?? "").ToString(); ;
+            if (String.IsNullOrWhiteSpace(sessionKey)) {
+                goto fail;
+            }
 
-                return null;
+            try {
+                var user = BlobCache.Secure.GetObjectAsync<AuthenticatedClient>(sessionKey).First();
+                if (user == null) goto fail;
+            } catch (Exception ex) {
+                goto fail;
+            }
 
-            fail:
-                return new RedirectResponse("/authentication/redirect/github");
-            });
+            return null;
+
+        fail:
+            return new RedirectResponse("/authentication/redirect/github");
         }
     }
 }
