@@ -63,20 +63,7 @@ namespace Peasant
                     new ProductHeaderValue("Peasant", "0.0.1"), 
                     new ReturnTheDamnCredentialsStore(new Credentials(username, password)));
 
-                var orgs = await client.Organization.GetAllForCurrent();
-                var repos = await client.Repository.GetAllForOrg(orgs.Skip(1).First().Login);
 
-                var target = Directory.CreateDirectory(Path.GetTempPath() + "\\" + Guid.NewGuid().ToString());
-                var url = repos.First(x => x.Private).CloneUrl;
-
-                if (ct.IsCancellationRequested) {
-                    return 500;
-                }
-
-                await Task.Run(() => {
-                    var creds = new LibGit2Sharp.Credentials() { Username = username, Password = password };
-                    LibGit2Sharp.Repository.Clone(url, target.FullName, credentials: creds);
-                });
 
                 return 201;
             };
