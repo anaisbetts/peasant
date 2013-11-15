@@ -21,6 +21,13 @@ namespace Peasant
             };
 
             Get["/post-receive", runAsync: true] = async (x, ct) => {
+                // 1. Grab out params
+                // 1. Determine clone target directory
+                // 1. Do the clone / fetch
+                // 1. Do a hard reset + clean -xdf
+                // 1. Download build script to target directory
+                // 1. Set up environment variables, kick off build script
+
                 return 201;
             };
         }
