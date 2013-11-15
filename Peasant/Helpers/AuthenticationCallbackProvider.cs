@@ -15,13 +15,10 @@ namespace Peasant.Helpers
     {
         public dynamic Process(NancyModule nancyModule, AuthenticateCallbackData model)
         {
-            var rng = new RNGCryptoServiceProvider();
-            var bytes = new byte[512]; rng.GetNonZeroBytes(bytes);
-
-            var sessionKey = "Session_" + BitConverter.ToString(bytes).Replace("-", "");
+            var sessionKey = "Session_" + model.AuthenticatedClient.AccessToken;
             BlobCache.Secure.InsertObject(sessionKey, model.AuthenticatedClient, TimeSpan.FromDays(1)).First();
 
-            // XXX: This doesn't seem to work
+            nancyModule.Session["User"] = sessionKey;
             return new RedirectResponse("/");
         }
 
