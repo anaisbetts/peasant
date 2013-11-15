@@ -15,7 +15,7 @@ namespace Peasant.Helpers
     {
         public dynamic Process(NancyModule nancyModule, AuthenticateCallbackData model)
         {
-            var sessionKey = "Session_" + model.AuthenticatedClient.AccessToken;
+            var sessionKey = "Session_" + model.AuthenticatedClient.AccessToken.PublicToken;
             BlobCache.Secure.InsertObject(sessionKey, model.AuthenticatedClient, TimeSpan.FromDays(1)).First();
 
             nancyModule.Session["User"] = sessionKey;

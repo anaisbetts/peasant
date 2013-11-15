@@ -6,16 +6,38 @@ using System.Reactive.Linq;
 using Akavache;
 using System.Threading.Tasks;
 using GitHub.Helpers;
+using Octokit;
+using System.Net.Http.Headers;
 
 namespace Peasant
 {
+    public class ReturnTheDamnCredentialsStore : ICredentialStore
+    {
+        readonly Credentials creds;
+        public ReturnTheDamnCredentialsStore(Credentials creds)
+        {
+            this.creds = creds;
+        }
+
+        public Task<Credentials> GetCredentials()
+        {
+            return Task.FromResult(creds);
+        }
+    }
+
     public class IndexModule : NancyModule
     {
         public IndexModule()
         {
             Get["/", runAsync: true] = async(x, ct) => {
-                var ret = await ensureAuthenticated(Context);
-                if (ret != null) return ret;
+                var user = await ensureAuthenticated(Context);
+                if (user == null) return new RedirectResponse("/authentication/redirect/github");
+
+                var client = new GitHubClient(
+                    new ProductHeaderValue("Peasant", "0.0.1"), 
+                    new ReturnTheDamnCredentialsStore(new Credentials(user.UserInformation.UserName, user.AccessToken.PublicToken)));
+
+                var orgs = await client.Organization.GetAllForCurrent();
 
                 return View["index"];
             };
@@ -32,7 +54,7 @@ namespace Peasant
             };
         }
 
-        async Task<dynamic> ensureAuthenticated(NancyContext ctx)
+        async Task<AuthenticatedClient> ensureAuthenticated(NancyContext ctx)
         {
             if (ctx.Request.Session == null) {
                 goto fail;
@@ -43,17 +65,18 @@ namespace Peasant
                 goto fail;
             }
 
+            var user = default(AuthenticatedClient);
             try {
-                var user = await BlobCache.Secure.GetObjectAsync<AuthenticatedClient>(sessionKey);
+                user = await BlobCache.Secure.GetObjectAsync<AuthenticatedClient>(sessionKey);
                 if (user == null) goto fail;
             } catch (Exception ex) {
                 goto fail;
             }
 
-            return null;
+            return user;
 
         fail:
-            return new RedirectResponse("/authentication/redirect/github");
+            return null;
         }
     }
 }
