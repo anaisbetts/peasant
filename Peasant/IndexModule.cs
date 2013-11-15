@@ -14,7 +14,7 @@ namespace Peasant
         public IndexModule()
         {
             Get["/", runAsync: true] = async(x, ct) => {
-                var ret = ensureAuthenticated(Context);
+                var ret = await ensureAuthenticated(Context);
                 if (ret != null) return ret;
 
                 return View["index"];
@@ -25,7 +25,7 @@ namespace Peasant
             };
         }
 
-        dynamic ensureAuthenticated(NancyContext ctx)
+        async Task<dynamic> ensureAuthenticated(NancyContext ctx)
         {
             if (ctx.Request.Session == null) {
                 goto fail;
@@ -37,7 +37,7 @@ namespace Peasant
             }
 
             try {
-                var user = BlobCache.Secure.GetObjectAsync<AuthenticatedClient>(sessionKey).First();
+                var user = await BlobCache.Secure.GetObjectAsync<AuthenticatedClient>(sessionKey);
                 if (user == null) goto fail;
             } catch (Exception ex) {
                 goto fail;
