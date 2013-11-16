@@ -16,7 +16,7 @@ using System.Threading.Tasks;
 
 namespace Peasant.Models
 {
-    public class QueueItem 
+    public class BuildQueueItem 
     {
         public long BuildId { get; set; }
         public string RepoUrl { get; set; }
@@ -30,24 +30,24 @@ namespace Peasant.Models
         readonly OperationQueue opQueue = new OperationQueue(2);
         readonly IBlobCache blobCache;
         readonly GitHubClient client;
-        readonly Subject<QueueItem> enqueueSubject = new Subject<QueueItem>();
-        readonly Subject<QueueItem> finishedBuilds = new Subject<QueueItem>();
-        readonly Func<QueueItem, Task<string>> processBuildFunc;
+        readonly Subject<BuildQueueItem> enqueueSubject = new Subject<BuildQueueItem>();
+        readonly Subject<BuildQueueItem> finishedBuilds = new Subject<BuildQueueItem>();
+        readonly Func<BuildQueueItem, Task<string>> processBuildFunc;
 
         long nextBuildId;
 
-        public BuildQueue(IBlobCache cache, GitHubClient githubClient, Func<QueueItem, Task<string>> processBuildFunc = null)
+        public BuildQueue(IBlobCache cache, GitHubClient githubClient, Func<BuildQueueItem, Task<string>> processBuildFunc = null)
         {
             blobCache = cache;
             client = githubClient;
-            this.processBuildFunc = processBuildFunc ?? processBuild;
+            this.processBuildFunc = processBuildFunc ?? ProcessSingleBuild;
         }
 
-        public IObservable<QueueItem> Enqueue(string repoUrl, string sha1, string buildScriptUrl)
+        public IObservable<BuildQueueItem> Enqueue(string repoUrl, string sha1, string buildScriptUrl)
         {
             var buildId = Interlocked.Increment(ref nextBuildId);
 
-            enqueueSubject.OnNext(new QueueItem() {
+            enqueueSubject.OnNext(new BuildQueueItem() {
                 BuildId = buildId,
                 RepoUrl = repoUrl,
                 SHA1 = sha1,
@@ -62,7 +62,7 @@ namespace Peasant.Models
             var enqueueWithSave = enqueueSubject
                 .SelectMany(x => blobCache.InsertObject("build_" + x.BuildId, x).Select(_ => x));
 
-            var ret = blobCache.GetAllObjects<QueueItem>()
+            var ret = blobCache.GetAllObjects<BuildQueueItem>()
                 .Do(x => nextBuildId = x.Max(y => y.BuildId) + 1)
                 .SelectMany(x => x.ToObservable())
                 .Concat(enqueueWithSave)
@@ -81,7 +81,7 @@ namespace Peasant.Models
             return ret.Connect();
         }
 
-        async Task<string> processBuild(QueueItem queueItem)
+        public async Task<string> ProcessSingleBuild(BuildQueueItem queueItem)
         {
             var orgs = await client.Organization.GetAllForCurrent();
 
