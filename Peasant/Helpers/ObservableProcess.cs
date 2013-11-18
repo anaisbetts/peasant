@@ -9,9 +9,9 @@ using System.Text;
 
 namespace GitHub.Helpers
 {
-    public class ObservableProcess
+    public class ObservableProcess : IObservable<int>
     {
-        readonly AsyncSubject<Unit> exit = new AsyncSubject<Unit>();
+        readonly AsyncSubject<int> exit = new AsyncSubject<int>();
         readonly object gate = 42;
         readonly ReplaySubject<string> output = new ReplaySubject<string>();
         readonly Process process;
@@ -60,7 +60,7 @@ namespace GitHub.Helpers
                 }
                 else
                 {
-                    exit.OnNext(Unit.Default);
+                    exit.OnNext(exitCode);
                     exit.OnCompleted();
                 }
             }, RxApp.TaskpoolScheduler);
@@ -76,7 +76,7 @@ namespace GitHub.Helpers
             get { return output; }
         }
 
-        public IDisposable Subscribe(IObserver<Unit> observer)
+        public IDisposable Subscribe(IObserver<int> observer)
         {
             return exit.Subscribe(observer);
         }
