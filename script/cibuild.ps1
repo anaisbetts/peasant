@@ -6,6 +6,8 @@ if ($SlnFileExists -eq $False) {
     exit -1
 }
 
+.\.nuget\NuGet.exe restore
+
 & "$MSBuild" /t:Rebuild /p:Configuration=Release .\Peasant.sln
 
 $host.SetShouldExit($LastExitCode)
