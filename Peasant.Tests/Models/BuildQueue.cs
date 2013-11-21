@@ -40,7 +40,7 @@ namespace Peasant.Models.Tests
         }
 
         [Fact]
-        public void ProcessSingleBuildIntegrationTest()
+        public async Task ProcessSingleBuildIntegrationTest()
         {
             var cache = new TestBlobCache();
             var client = new GitHubClient(new ProductHeaderValue("Peasant"));
@@ -48,15 +48,18 @@ namespace Peasant.Models.Tests
             var allLines = stdout.CreateCollection();
 
             var fixture = new BuildQueue(client, cache);
-            var result = fixture.ProcessSingleBuild(new BuildQueueItem() {
+            var result = await fixture.ProcessSingleBuild(new BuildQueueItem() {
                 BuildId = 1,
                 BuildScriptUrl = "https://github.com/paulcbetts/peasant/blob/master/script/cibuild.ps1",
                 RepoUrl = "https://github.com/paulcbetts/peasant",
                 SHA1 = "306038897ab7b78e95a0117ecabec76506ebb55d",
-            }, stdout).Result;
+            }, stdout);
+
+            var output = allLines.Aggregate(new StringBuilder(), (acc, x) => { acc.AppendLine(x); return acc; }).ToString();
+            Console.WriteLine(output);
 
             Assert.Equal(0, result);
-            Assert.NotEmpty(allLines);
+            Assert.False(String.IsNullOrWhiteSpace(output));
         }
 
         [Fact]

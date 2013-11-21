@@ -7,3 +7,6 @@ if ($SlnFileExists -eq $False) {
 }
 
 & "$MSBuild" /t:Rebuild /p:Configuration=Release .\Peasant.sln
+
+$host.SetShouldExit($LastExitCode)
+exit

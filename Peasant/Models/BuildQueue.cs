@@ -206,7 +206,7 @@ namespace Peasant.Models
                 break;
             case ".ps1":
                 ret.FileName = Environment.ExpandEnvironmentVariables(@"%SystemRoot%\System32\WindowsPowerShell\v1.0\PowerShell.exe");
-                ret.Arguments = "-ExecutionPolicy Unrestricted -File \"" + buildScript + "\"";
+                ret.Arguments = "-ExecutionPolicy Unrestricted -NonInteractive -NoProfile -Command \"" + buildScript + "\"";
                 break;
             default:
                 ret.FileName = buildScript;
