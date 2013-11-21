@@ -48,9 +48,9 @@ namespace Peasant.Models
 
         long nextBuildId;
 
-        public BuildQueue(IBlobCache cache, GitHubClient githubClient, Func<BuildQueueItem, IObserver<string>, Task<int>> processBuildFunc = null)
+        public BuildQueue(GitHubClient githubClient, IBlobCache cache = null, Func<BuildQueueItem, IObserver<string>, Task<int>> processBuildFunc = null)
         {
-            blobCache = cache;
+            blobCache = cache ?? BlobCache.LocalMachine;
             client = githubClient;
             this.processBuildFunc = processBuildFunc ?? ProcessSingleBuild;
         }
@@ -119,7 +119,8 @@ namespace Peasant.Models
             var buildScriptPath = Path.Combine(target, filename);
 
             var wc = new WebClient();
-            await wc.DownloadFileTaskAsync(queueItem.BuildScriptUrl.Replace("/blob/", "/raw/"), buildScriptPath);
+            var buildScriptUrl = queueItem.BuildScriptUrl.Replace("/blob/", "/raw/").Replace("/master/", "/" + queueItem.SHA1 + "/");
+            await wc.DownloadFileTaskAsync(buildScriptUrl, buildScriptPath);
 
             var process = new ObservableProcess(createStartInfoForScript(buildScriptPath));
             if (stdout != null) {
