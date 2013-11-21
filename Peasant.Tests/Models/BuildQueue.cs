@@ -62,5 +62,17 @@ namespace Peasant.Models.Tests
         {
             throw new NotImplementedException();
         }
+
+        [Fact]
+        public void FailTheBuildIfBuildScriptUrlIsBogus()
+        {
+            throw new NotImplementedException();
+        }
+
+        [Fact]
+        public void FailTheBuildIfBuildScriptUrlIsValidBut404s()
+        {
+            throw new NotImplementedException();
+        }
     }
 }
