@@ -152,10 +152,10 @@ namespace Peasant.Models
             await Task.Run(() => {
                 var sha = default(LibGit2Sharp.ObjectId);
                 LibGit2Sharp.ObjectId.TryParse(queueItem.SHA1, out sha);
-                var commit = repo.Commits.FirstOrDefault(x => x.Id == sha);
+                var commit = (LibGit2Sharp.Commit)repo.Lookup(sha, LibGit2Sharp.ObjectType.Commit);
 
                 if (commit == null) {
-                    throw new Exception(String.Format("Commit {0} in Repo {1} doesn't exist", queueItem.RepoUrl, queueItem.SHA1));
+                    throw new Exception(String.Format("Commit {0} in Repo {1} doesn't exist", queueItem.SHA1, queueItem.RepoUrl));
                 }
 
                 repo.Reset(LibGit2Sharp.ResetOptions.Hard, commit);
@@ -174,11 +174,11 @@ namespace Peasant.Models
             };
 
             switch (Path.GetExtension(buildScript)) {
-            case "cmd":
+            case ".cmd":
                 ret.FileName = Environment.ExpandEnvironmentVariables(@"%SystemRoot%\System32\cmd.exe");
                 ret.Arguments = "/C \"" + buildScript + "\"";
                 break;
-            case "ps1":
+            case ".ps1":
                 ret.FileName = Environment.ExpandEnvironmentVariables(@"%SystemRoot%\System32\WindowsPowerShell\v1.0\PowerShell.exe");
                 ret.Arguments = "-ExecutionPolicy Unrestricted -File \"" + buildScript + "\"";
                 break;
@@ -197,8 +197,8 @@ namespace Peasant.Models
                 goto fail;
             }
 
-            var org = m.Captures[1].Value;
-            var repo = m.Captures[2].Value;
+            var org = m.Groups[1].Value;
+            var repo = m.Groups[2].Value;
 
             // Anything from your own repo is :cool:
             if (org == client.Credentials.Login) {
