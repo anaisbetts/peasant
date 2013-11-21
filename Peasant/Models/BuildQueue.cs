@@ -89,7 +89,8 @@ namespace Peasant.Models
                 .SelectMany(x => blobCache.InsertObject("build_" + x.BuildId, x).Select(_ => x));
 
             var ret = blobCache.GetAllObjects<BuildQueueItem>()
-                .Do(x => nextBuildId = x.Max(y => y.BuildId) + 1)
+                .Select(x => x.ToList())
+                .Do(x => nextBuildId = (x.Count > 0 ? x.Max(y => y.BuildId) + 1 : 1))
                 .SelectMany(x => x.ToObservable())
                 .Concat(enqueueWithSave)
                 .SelectMany(x => opQueue.Enqueue(10, () => processBuildFunc(x, buildOutput))
