@@ -184,7 +184,19 @@ namespace Peasant.Models
                 }
 
                 repo.Reset(LibGit2Sharp.ResetOptions.Hard, commit);
-                repo.RemoveUntrackedFiles();
+
+                // NB: Unlike git clean, RemoveUntrackedFiles respects 
+                // .gitignore, we need to squelch it
+                var gitignorePath = Path.Combine(target, ".gitignore");
+                if (File.Exists(gitignorePath)) {
+                    var contents = File.ReadAllBytes(gitignorePath);
+
+                    File.Delete(gitignorePath);
+                    repo.RemoveUntrackedFiles();
+                    File.WriteAllBytes(gitignorePath, contents);
+                } else {
+                    repo.RemoveUntrackedFiles();
+                }
             });
         }
 
