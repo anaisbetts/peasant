@@ -23,7 +23,7 @@ namespace Peasant.Models.Tests
 
             var fixture = new BuildQueue(client, cache);
             using (fixture.Start()) {
-                var result = await fixture.Enqueue("https://github.com/paulcbetts/peasant", "306038897ab7b78e95a0117ecabec76506ebb55d", "https://github.com/paulcbetts/peasant/blob/master/script/cibuild.ps1");{}
+                var result = await fixture.Enqueue("https://github.com/paulcbetts/peasant", "46c20227bb08185215f5b3d9519297142873b261", "https://github.com/paulcbetts/peasant/blob/master/script/cibuild.ps1"); { }
             }
         }
 
@@ -52,7 +52,7 @@ namespace Peasant.Models.Tests
                 BuildId = 1,
                 BuildScriptUrl = "https://github.com/paulcbetts/peasant/blob/master/script/cibuild.ps1",
                 RepoUrl = "https://github.com/paulcbetts/peasant",
-                SHA1 = "306038897ab7b78e95a0117ecabec76506ebb55d",
+                SHA1 = "46c20227bb08185215f5b3d9519297142873b261",
             }, stdout);
 
             var output = allLines.Aggregate(new StringBuilder(), (acc, x) => { acc.AppendLine(x); return acc; }).ToString();
@@ -61,6 +61,40 @@ namespace Peasant.Models.Tests
             Assert.Equal(0, result);
             Assert.False(String.IsNullOrWhiteSpace(output));
         }
+
+        [Fact]
+        public async Task ProcessSingleBuildThatFails()
+        {
+            var cache = new TestBlobCache();
+            var client = new GitHubClient(new ProductHeaderValue("Peasant"));
+            var stdout = new Subject<string>();
+            var allLines = stdout.CreateCollection();
+
+            var fixture = new BuildQueue(client, cache);
+            var result = default(int);
+            bool shouldDie = true;
+
+            try {
+                // NB: This build fails because NuGet package restore wasn't set 
+                // up properly, so MSBuild is missing a ton of assemblies
+                result = await fixture.ProcessSingleBuild(new BuildQueueItem() {
+                    BuildId = 1,
+                    BuildScriptUrl = "https://github.com/paulcbetts/peasant/blob/master/script/cibuild.ps1",
+                    RepoUrl = "https://github.com/paulcbetts/peasant",
+                    SHA1 = "c72ce8cdb6729a71bbfceebfdc6c1f22dca3ce2c",
+                }, stdout);
+            } catch (Exception ex) {
+                Console.WriteLine(ex.ToString());
+                shouldDie = false;
+            }
+
+            var output = allLines.Aggregate(new StringBuilder(), (acc, x) => { acc.AppendLine(x); return acc; }).ToString();
+            Console.WriteLine(output);
+
+            Assert.False(shouldDie);
+        }
+
+
 
         [Fact]
         public void PausingTheQueueShouldntLoseBuilds()
