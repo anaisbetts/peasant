@@ -35,6 +35,16 @@ namespace Peasant.Models
 
             return di.FullName;
         }
+
+        public static Tuple<string, string> NameWithOwner(string githubUrl)
+        {
+            var m = Regex.Match(githubUrl.ToLowerInvariant(), @"https://github.com/(\w+)/(\w+)");
+            if (!m.Success) {
+                return null;
+            }
+
+            return Tuple.Create(m.Groups[1].Value, m.Groups[2].Value);
+        }
     }
 
     public class BuildQueue
@@ -115,14 +125,10 @@ namespace Peasant.Models
 
             // XXX: This needs to be way more secure
             await validateBuildUrl(queueItem.BuildScriptUrl);
-            var filename = queueItem.BuildScriptUrl.Substring(queueItem.BuildScriptUrl.LastIndexOf('/') + 1);
-            var buildScriptPath = Path.Combine(target, filename);
 
-            var wc = new WebClient();
-            var buildScriptUrl = queueItem.BuildScriptUrl.Replace("/blob/", "/raw/").Replace("/master/", "/" + queueItem.SHA1 + "/");
-            await wc.DownloadFileTaskAsync(buildScriptUrl, buildScriptPath);
+            var buildScriptPath = await getBuildScriptPath(queueItem, target);
 
-            var process = new ObservableProcess(createStartInfoForScript(buildScriptPath));
+            var process = new ObservableProcess(createStartInfoForScript(buildScriptPath, target));
             if (stdout != null) {
                 process.Output.Subscribe(stdout);
             }
@@ -136,6 +142,24 @@ namespace Peasant.Models
             }
 
             return exitCode;
+        }
+
+        static async Task<string> getBuildScriptPath(BuildQueueItem queueItem, string target)
+        {
+            var filename = queueItem.BuildScriptUrl.Substring(queueItem.BuildScriptUrl.LastIndexOf('/') + 1);
+
+            // If the build script is in the same repo, just return it
+            if (BuildQueueItem.NameWithOwner(queueItem.RepoUrl) == BuildQueueItem.NameWithOwner(queueItem.BuildScriptUrl)) {
+                return Path.Combine(target,
+                    Regex.Replace(queueItem.BuildScriptUrl, @".*/master/blob/", "").Replace('/', Path.DirectorySeparatorChar));
+            }
+
+            var buildScriptPath = Path.Combine(target, filename);
+            var wc = new WebClient();
+            var buildScriptUrl = queueItem.BuildScriptUrl.Replace("/blob/", "/raw/").Replace("/master/", "/" + queueItem.SHA1 + "/");
+            await wc.DownloadFileTaskAsync(buildScriptUrl, buildScriptPath);
+
+            return buildScriptPath;
         }
 
         static async Task cloneOrResetRepo(BuildQueueItem queueItem, string target, LibGit2Sharp.Repository repo, LibGit2Sharp.Credentials creds)
@@ -163,7 +187,7 @@ namespace Peasant.Models
             });
         }
 
-        static ProcessStartInfo createStartInfoForScript(string buildScript)
+        static ProcessStartInfo createStartInfoForScript(string buildScript, string localRepoRootDirectory)
         {
             var ret = new ProcessStartInfo() {
                 RedirectStandardError = true,
@@ -171,6 +195,7 @@ namespace Peasant.Models
                 UseShellExecute = false,
                 StandardErrorEncoding = Encoding.UTF8,
                 StandardOutputEncoding = Encoding.UTF8,
+                WorkingDirectory = localRepoRootDirectory,
             };
 
             switch (Path.GetExtension(buildScript)) {
@@ -192,16 +217,13 @@ namespace Peasant.Models
 
         async Task<string> validateBuildUrl(string buildUrl)
         {
-            var m = Regex.Match(buildUrl.ToLowerInvariant(), @"https://github.com/(\w+)/(\w+)");
-            if (!m.Success) {
+            var nwo = BuildQueueItem.NameWithOwner(buildUrl);
+            if (nwo == null) {
                 goto fail;
             }
 
-            var org = m.Groups[1].Value;
-            var repo = m.Groups[2].Value;
-
             // Anything from your own repo is :cool:
-            if (org == client.Credentials.Login) {
+            if (nwo.Item1 == client.Credentials.Login) {
                 return null;
             }
 
@@ -209,7 +231,7 @@ namespace Peasant.Models
             try {
                 // XXX: This needs to be a more thorough check, this means any
                 // public repo can be used.
-                repoInfo = await client.Repository.Get(org, repo);
+                repoInfo = await client.Repository.Get(nwo.Item1, nwo.Item2);
             } catch (Exception ex) {
                 goto fail;
             }
