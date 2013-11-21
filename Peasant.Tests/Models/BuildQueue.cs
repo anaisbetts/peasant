@@ -16,13 +16,15 @@ namespace Peasant.Models.Tests
     public class BuildQueueTests
     {
         [Fact]
-        public void FullBuildIntegrationTest()
+        public async Task FullBuildIntegrationTest()
         {
             var cache = new TestBlobCache();
             var client = new GitHubClient(new ProductHeaderValue("Peasant"));
 
             var fixture = new BuildQueue(client, cache);
-            var result = fixture.Enqueue("https://github.com/paulcbetts/peasant", "306038897ab7b78e95a0117ecabec76506ebb55d", "https://github.com/paulcbetts/peasant/blob/master/script/cibuild.ps1").First();
+            using (fixture.Start()) {
+                var result = await fixture.Enqueue("https://github.com/paulcbetts/peasant", "306038897ab7b78e95a0117ecabec76506ebb55d", "https://github.com/paulcbetts/peasant/blob/master/script/cibuild.ps1");{}
+            }
         }
 
         [Fact]
