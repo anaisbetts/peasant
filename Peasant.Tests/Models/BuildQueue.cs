@@ -22,7 +22,7 @@ namespace Peasant.Models.Tests
             var client = new GitHubClient(new ProductHeaderValue("Peasant"));
 
             var fixture = new BuildQueue(client, cache);
-            var result = fixture.Enqueue("https://github.com/paulcbetts/peasant", "306038897ab7b78e95a0117ecabec76506ebb55d", "https://github.com/paulcbetts/peasant/blob/master/script/cibuild").First();
+            var result = fixture.Enqueue("https://github.com/paulcbetts/peasant", "306038897ab7b78e95a0117ecabec76506ebb55d", "https://github.com/paulcbetts/peasant/blob/master/script/cibuild.ps1").First();
         }
 
         [Fact]
@@ -48,7 +48,7 @@ namespace Peasant.Models.Tests
             var fixture = new BuildQueue(client, cache);
             var result = fixture.ProcessSingleBuild(new BuildQueueItem() {
                 BuildId = 1,
-                BuildScriptUrl = "https://github.com/paulcbetts/peasant/blob/master/script/cibuild",
+                BuildScriptUrl = "https://github.com/paulcbetts/peasant/blob/master/script/cibuild.ps1",
                 RepoUrl = "https://github.com/paulcbetts/peasant",
                 SHA1 = "306038897ab7b78e95a0117ecabec76506ebb55d",
             }, stdout).Result;
