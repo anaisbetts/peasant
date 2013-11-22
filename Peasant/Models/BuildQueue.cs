@@ -83,10 +83,6 @@ namespace Peasant.Models
 
         public IDisposable Start()
         {
-            var buildOutput = new Subject<string>();
-            var currentOutput = new StringBuilder();
-            buildOutput.Subscribe(x => currentOutput.AppendLine(x));
-
             var enqueueWithSave = enqueueSubject
                 .SelectMany(x => blobCache.InsertObject("build_" + x.BuildId, x).Select(_ => x));
 
@@ -95,16 +91,20 @@ namespace Peasant.Models
                 .Do(x => nextBuildId = (x.Count > 0 ? x.Max(y => y.BuildId) + 1 : 1))
                 .SelectMany(x => x.ToObservable())
                 .Concat(enqueueWithSave)
-                .SelectMany(x => opQueue.Enqueue(10, () => processBuildFunc(x, buildOutput))
-                    .ToObservable()
-                    .Catch<int, Exception>(ex => { buildOutput.OnNext(ex.Message); return Observable.Return(-1); })
-                    .Select(y => new { Build = x, Output = currentOutput.ToString(), }))
-                .SelectMany(async x => {
-                    await blobCache.Insert("buildoutput_" + x.Build.BuildId, Encoding.UTF8.GetBytes(x.Output));
-                    await blobCache.Invalidate("build_" + x.Build.BuildId);
+                .SelectMany(async buildItem => {
+                    var exit = default(int);
+                    try {
+                        exit = await opQueue.Enqueue(10, () => processBuildFunc(buildItem, buildItem.CurrentBuildOutput));
+                    } catch (Exception ex) {
+                        buildItem.CurrentBuildOutput.OnNext(ex.ToString());
+                        exit = -1;
+                    }
 
-                    x.Build.BuildOutput = x.Output;
-                    return x.Build;
+                    buildItem.BuildOutput = buildItem.CurrentBuildOutput.Current;
+
+                    await blobCache.InsertObject("buildresult_" + buildItem.BuildId, buildItem);
+                    await blobCache.Invalidate("build_" + buildItem.BuildId);
+                    return buildItem;
                 })
                 .Multicast(finishedBuilds);
 
