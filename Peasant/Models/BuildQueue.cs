@@ -4,6 +4,7 @@ using Octokit;
 using Peasant.Helpers;
 using Punchclock;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -47,6 +48,16 @@ namespace Peasant.Models
 
             return di.FullName;
         }
+
+        public static string CacheKeyForQueuedBuild(long buildId)
+        {
+            return "build_" + buildId;
+        }
+
+        public static string CacheKeyForFinishedBuild(long buildId)
+        {
+            return "buildresult_" + buildId;
+        }
     }
 
     public class BuildQueue
@@ -57,6 +68,7 @@ namespace Peasant.Models
         readonly Subject<BuildQueueItem> enqueueSubject = new Subject<BuildQueueItem>();
         readonly Subject<BuildQueueItem> finishedBuilds = new Subject<BuildQueueItem>();
         readonly Func<BuildQueueItem, IObserver<string>, Task<int>> processBuildFunc;
+        readonly Dictionary<long, BuildQueueItem> inflightBuilds = new Dictionary<long, BuildQueueItem>();
 
         long nextBuildId;
 
@@ -84,7 +96,7 @@ namespace Peasant.Models
         public IDisposable Start()
         {
             var enqueueWithSave = enqueueSubject
-                .SelectMany(x => blobCache.InsertObject("build_" + x.BuildId, x).Select(_ => x));
+                .SelectMany(x => blobCache.InsertObject(BuildQueueItem.CacheKeyForQueuedBuild(x.BuildId), x).Select(_ => x));
 
             var ret = blobCache.GetAllObjects<BuildQueueItem>()
                 .Select(x => x.ToList())
@@ -92,6 +104,8 @@ namespace Peasant.Models
                 .SelectMany(x => x.ToObservable())
                 .Concat(enqueueWithSave)
                 .SelectMany(async buildItem => {
+                    lock (inflightBuilds) { inflightBuilds.Add(buildItem.BuildId, buildItem); }
+
                     var exit = default(int);
                     try {
                         exit = await opQueue.Enqueue(10, () => processBuildFunc(buildItem, buildItem.CurrentBuildOutput));
@@ -102,8 +116,10 @@ namespace Peasant.Models
 
                     buildItem.BuildOutput = buildItem.CurrentBuildOutput.Current;
 
-                    await blobCache.InsertObject("buildresult_" + buildItem.BuildId, buildItem);
-                    await blobCache.Invalidate("build_" + buildItem.BuildId);
+                    await blobCache.InsertObject(BuildQueueItem.CacheKeyForFinishedBuild(buildItem.BuildId), buildItem);
+                    await blobCache.Invalidate(BuildQueueItem.CacheKeyForQueuedBuild(buildItem.BuildId));
+
+                    lock (inflightBuilds) { inflightBuilds.Remove(buildItem.BuildId); }
                     return buildItem;
                 })
                 .Multicast(finishedBuilds);
@@ -145,6 +161,27 @@ namespace Peasant.Models
             }
 
             return exitCode;
+        }
+
+        public async Task<string> GetBuildOutput(long buildId)
+        {
+            lock (inflightBuilds) {
+                if (inflightBuilds.ContainsKey(buildId)) {
+                    return inflightBuilds[buildId].CurrentBuildOutput.Current;
+                }
+            }
+
+            var ret = default(BuildQueueItem);
+            ret = await blobCache.GetObjectAsync<BuildQueueItem>(BuildQueueItem.CacheKeyForQueuedBuild(buildId))
+                .Catch(Observable.Return(default(BuildQueueItem)));
+
+            // Builds that are still queued don't have any build output
+            if (ret != null) return "Build queued, ID is " + buildId;
+
+            // NB: This will throw if we can't find a finished build, which
+            // is what we want
+            ret = await blobCache.GetObjectAsync<BuildQueueItem>(BuildQueueItem.CacheKeyForFinishedBuild(buildId));
+            return ret.BuildOutput;
         }
 
         static async Task<string> getBuildScriptPath(BuildQueueItem queueItem, string target)
