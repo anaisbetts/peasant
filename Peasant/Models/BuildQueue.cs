@@ -35,16 +35,6 @@ namespace Peasant.Models
 
             return di.FullName;
         }
-
-        public static Tuple<string, string> NameWithOwner(string githubUrl)
-        {
-            var m = Regex.Match(githubUrl.ToLowerInvariant(), @"https://github.com/(\w+)/(\w+)");
-            if (!m.Success) {
-                return null;
-            }
-
-            return Tuple.Create(m.Groups[1].Value, m.Groups[2].Value);
-        }
     }
 
     public class BuildQueue
@@ -150,7 +140,7 @@ namespace Peasant.Models
             var filename = queueItem.BuildScriptUrl.Substring(queueItem.BuildScriptUrl.LastIndexOf('/') + 1);
 
             // If the build script is in the same repo, just return it
-            if (BuildQueueItem.NameWithOwner(queueItem.RepoUrl) == BuildQueueItem.NameWithOwner(queueItem.BuildScriptUrl)) {
+            if (GitHubUrl.NameWithOwner(queueItem.RepoUrl) == GitHubUrl.NameWithOwner(queueItem.BuildScriptUrl)) {
                 return Path.Combine(target,
                     Regex.Replace(queueItem.BuildScriptUrl, @".*/master/blob/", "").Replace('/', Path.DirectorySeparatorChar));
             }
@@ -230,7 +220,7 @@ namespace Peasant.Models
 
         async Task<string> validateBuildUrl(string buildUrl)
         {
-            var nwo = BuildQueueItem.NameWithOwner(buildUrl);
+            var nwo = GitHubUrl.NameWithOwner(buildUrl);
             if (nwo == null) {
                 goto fail;
             }
