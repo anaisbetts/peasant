@@ -1,6 +1,7 @@
 ﻿using Akavache;
 using GitHub.Helpers;
 using Octokit;
+using Peasant.Helpers;
 using Punchclock;
 using System;
 using System.Collections.Generic;
@@ -12,6 +13,7 @@ using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Reactive.Threading.Tasks;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -19,17 +21,27 @@ using System.Threading.Tasks;
 
 namespace Peasant.Models
 {
+    [DataContract]
     public class BuildQueueItem 
     {
-        public long BuildId { get; set; }
-        public string RepoUrl { get; set; }
-        public string SHA1 { get; set; }
-        public string BuildScriptUrl { get; set; }
-        public string BuildOutput { get; set; }
+        [DataMember] public long BuildId { get; set; }
+        [DataMember] public string RepoUrl { get; set; }
+        [DataMember] public string SHA1 { get; set; }
+        [DataMember] public string BuildScriptUrl { get; set; }
+        [DataMember] public string BuildOutput { get; set; }
+
+        [IgnoreDataMember] public AggregateStringSubject CurrentBuildOutput { get; protected set; }
+
+        [IgnoreDataMember] readonly string overrideBuildDir;
+
+        public BuildQueueItem(string overrideBuildDir = null)
+        {
+            this.overrideBuildDir = overrideBuildDir;
+        }
 
         public string GetBuildDirectory()
         {
-            var rootDir = Environment.GetEnvironmentVariable("PEASANT_BUILD_DIR") ?? Path.GetTempPath();
+            var rootDir = overrideBuildDir ?? Environment.GetEnvironmentVariable("PEASANT_BUILD_DIR") ?? Path.GetTempPath();
             var di = new DirectoryInfo(Path.Combine(rootDir, "Build_" + RepoUrl.ToSHA1()));
             if (!di.Exists) di.Create();
 
@@ -55,11 +67,11 @@ namespace Peasant.Models
             this.processBuildFunc = processBuildFunc ?? ProcessSingleBuild;
         }
 
-        public IObservable<BuildQueueItem> Enqueue(string repoUrl, string sha1, string buildScriptUrl)
+        public IObservable<BuildQueueItem> Enqueue(string repoUrl, string sha1, string buildScriptUrl, string overrideBuildRootDir = null)
         {
             var buildId = Interlocked.Increment(ref nextBuildId);
 
-            enqueueSubject.OnNext(new BuildQueueItem() {
+            enqueueSubject.OnNext(new BuildQueueItem(overrideBuildRootDir) {
                 BuildId = buildId,
                 RepoUrl = repoUrl,
                 SHA1 = sha1,
