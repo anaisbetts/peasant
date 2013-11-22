@@ -113,5 +113,29 @@ namespace Peasant.Models.Tests
         {
             throw new NotImplementedException();
         }
+
+        [Fact]
+        public void BuildOutputForQueuedBuildsShouldHaveTheBuildId()
+        {
+            throw new NotImplementedException();
+        }
+
+        [Fact]
+        public void BuildOutputForInProgressBuildsShouldHaveBuildOutput()
+        {
+            throw new NotImplementedException();
+        }
+
+        [Fact]
+        public void BuildOutputForFinishedBuildsShouldHaveBuildOutput()
+        {
+            throw new NotImplementedException();
+        }
+
+        [Fact]
+        public void BuildOutputForUnknownBuildsShouldThrow()
+        {
+            throw new NotImplementedException();
+        }
     }
 }

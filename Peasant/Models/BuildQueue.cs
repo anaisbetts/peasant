@@ -1,24 +1,21 @@
-﻿using Akavache;
-using GitHub.Helpers;
-using Octokit;
-using Peasant.Helpers;
-using Punchclock;
-using System;
-using System.Collections.Concurrent;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using System.Reactive.Threading.Tasks;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Akavache;
+using GitHub.Helpers;
+using Octokit;
+using Peasant.Helpers;
+using Punchclock;
 
 namespace Peasant.Models
 {

@@ -63,8 +63,6 @@ namespace Peasant
                     new ProductHeaderValue("Peasant", "0.0.1"), 
                     new ReturnTheDamnCredentialsStore(new Credentials(username, password)));
 
-
-
                 return 201;
             };
         }
