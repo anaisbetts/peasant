@@ -120,10 +120,28 @@ namespace Peasant.Models.Tests
         }
 
         [Fact]
-        public void BuildsThatSucceedShouldBeRecorded()
+        public async Task BuildsThatSucceedShouldBeRecorded()
         {
-            throw new NotImplementedException();
+            var cache = new TestBlobCache();
+            var client = new GitHubClient(new ProductHeaderValue("Peasant"));
+
+            var fixture = new BuildQueue(client, cache, (q, o) => {
+                return Task.FromResult(0);
+            });
+
+            fixture.Start();
+
+            var queueItem = await fixture.Enqueue(TestBuild.RepoUrl, TestBuild.PassingBuildSHA1, TestBuild.BuildScriptUrl);
+
+            Assert.NotNull(queueItem);
+            Assert.True(queueItem.BuildSucceded.Value);
+
+            fixture = new BuildQueue(client, cache);
+            var result = await fixture.GetBuildOutput(queueItem.BuildId);
+
+            Assert.Equal(0, result.Item2);
         }
+
         [Fact]
         public void PausingTheQueueShouldntLoseBuilds()
         {
@@ -155,15 +173,23 @@ namespace Peasant.Models.Tests
         }
 
         [Fact]
-        public void BuildOutputForFinishedBuildsShouldHaveBuildOutput()
+        public async Task BuildOutputForUnknownBuildsShouldThrow()
         {
-            throw new NotImplementedException();
-        }
+            var cache = new TestBlobCache();
+            var client = new GitHubClient(new ProductHeaderValue("Peasant"));
 
-        [Fact]
-        public void BuildOutputForUnknownBuildsShouldThrow()
-        {
-            throw new NotImplementedException();
+            var fixture = new BuildQueue(client, cache, (q, o) => {
+                return Task.FromResult(0);
+            });
+
+            bool shouldDie = true;
+            try {
+                await fixture.GetBuildOutput(42);
+            } catch (Exception) {
+                shouldDie = false;
+            }
+
+            Assert.False(shouldDie);
         }
     }
 }
