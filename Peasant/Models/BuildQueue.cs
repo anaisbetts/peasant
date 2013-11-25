@@ -11,6 +11,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Reactive.Threading.Tasks;
 using Akavache;
 using GitHub.Helpers;
 using Octokit;
@@ -27,14 +28,20 @@ namespace Peasant.Models
         [DataMember] public string SHA1 { get; set; }
         [DataMember] public string BuildScriptUrl { get; set; }
         [DataMember] public string BuildOutput { get; set; }
+        [DataMember] public int? BuildExitCode { get; set; }
 
         [IgnoreDataMember] public AggregateStringSubject CurrentBuildOutput { get; protected set; }
 
         [IgnoreDataMember] readonly string overrideBuildDir;
 
+        [IgnoreDataMember] public bool? BuildSucceded {
+            get { return BuildExitCode != null ? (bool?)(BuildExitCode.Value == 0) : null; }
+        }
+
         public BuildQueueItem(string overrideBuildDir = null)
         {
             this.overrideBuildDir = overrideBuildDir;
+            CurrentBuildOutput = new AggregateStringSubject();
         }
 
         public string GetBuildDirectory()
@@ -76,9 +83,14 @@ namespace Peasant.Models
             this.processBuildFunc = processBuildFunc ?? ProcessSingleBuild;
         }
 
-        public IObservable<BuildQueueItem> Enqueue(string repoUrl, string sha1, string buildScriptUrl, string overrideBuildRootDir = null)
+        public Task<BuildQueueItem> Enqueue(string repoUrl, string sha1, string buildScriptUrl, string overrideBuildRootDir = null)
         {
             var buildId = Interlocked.Increment(ref nextBuildId);
+
+            var ret = finishedBuilds
+                .Where(x => x.BuildId == buildId)
+                .Take(1)
+                .ToTask();
 
             enqueueSubject.OnNext(new BuildQueueItem(overrideBuildRootDir) {
                 BuildId = buildId,
@@ -87,7 +99,7 @@ namespace Peasant.Models
                 BuildScriptUrl = buildScriptUrl,
             });
 
-            return finishedBuilds.Where(x => x.BuildId == buildId).Take(1);
+            return ret;
         }
 
         public IDisposable Start()
@@ -112,9 +124,10 @@ namespace Peasant.Models
                     }
 
                     buildItem.BuildOutput = buildItem.CurrentBuildOutput.Current;
+                    buildItem.BuildExitCode = exit;
 
                     await blobCache.InsertObject(BuildQueueItem.CacheKeyForFinishedBuild(buildItem.BuildId), buildItem);
-                    await blobCache.Invalidate(BuildQueueItem.CacheKeyForQueuedBuild(buildItem.BuildId));
+                    await blobCache.InvalidateObject<BuildQueueItem>(BuildQueueItem.CacheKeyForQueuedBuild(buildItem.BuildId));
 
                     lock (inflightBuilds) { inflightBuilds.Remove(buildItem.BuildId); }
                     return buildItem;
@@ -160,11 +173,12 @@ namespace Peasant.Models
             return exitCode;
         }
 
-        public async Task<string> GetBuildOutput(long buildId)
+        public async Task<Tuple<string, int?>> GetBuildOutput(long buildId)
         {
             lock (inflightBuilds) {
                 if (inflightBuilds.ContainsKey(buildId)) {
-                    return inflightBuilds[buildId].CurrentBuildOutput.Current;
+                    var build = inflightBuilds[buildId];
+                    return Tuple.Create(build.CurrentBuildOutput.Current, build.BuildExitCode);
                 }
             }
 
@@ -173,12 +187,14 @@ namespace Peasant.Models
                 .Catch(Observable.Return(default(BuildQueueItem)));
 
             // Builds that are still queued don't have any build output
-            if (ret != null) return "Build queued, ID is " + buildId;
+            if (ret != null) return Tuple.Create(
+                "Build queued, ID is " + buildId,
+                default(int?));
 
             // NB: This will throw if we can't find a finished build, which
             // is what we want
             ret = await blobCache.GetObjectAsync<BuildQueueItem>(BuildQueueItem.CacheKeyForFinishedBuild(buildId));
-            return ret.BuildOutput;
+            return Tuple.Create(ret.BuildOutput, ret.BuildExitCode);
         }
 
         static async Task<string> getBuildScriptPath(BuildQueueItem queueItem, string target)

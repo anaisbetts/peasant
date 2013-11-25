@@ -10,6 +10,7 @@ using Xunit;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using ReactiveUI;
+using System.Reactive;
 
 namespace Peasant.Models.Tests
 {
@@ -22,7 +23,7 @@ namespace Peasant.Models.Tests
         public const string FailingBecauseOfMsbuildSHA1 = "46c20227bb08185215f5b3d9519297142873b261";
     }
 
-    public class BuildQueueTests
+    public class BuildQueueIntegrationTests
     {
         [Fact]
         public async Task FullBuildIntegrationTest()
@@ -34,18 +35,6 @@ namespace Peasant.Models.Tests
             using (fixture.Start()) {
                 var result = await fixture.Enqueue(TestBuild.RepoUrl, TestBuild.PassingBuildSHA1, TestBuild.BuildScriptUrl);
             }
-        }
-
-        [Fact]
-        public void BuildsThatFailShouldBeRecorded()
-        {
-            throw new NotImplementedException();
-        }
-
-        [Fact]
-        public void BuildsThatSucceedShouldBeRecorded()
-        {
-            throw new NotImplementedException();
         }
 
         [Fact]
@@ -102,7 +91,39 @@ namespace Peasant.Models.Tests
 
             Assert.False(shouldDie);
         }
+    }
 
+    public class BuildQueueTests
+    {
+        [Fact]
+        public async Task BuildsThatFailShouldBeRecorded()
+        {
+            var cache = new TestBlobCache();
+            var client = new GitHubClient(new ProductHeaderValue("Peasant"));
+
+            var fixture = new BuildQueue(client, cache, async (q, o) => {
+                throw new Exception("Didn't work lol");
+            });
+
+            fixture.Start();
+
+            var queueItem = await fixture.Enqueue(TestBuild.RepoUrl, TestBuild.PassingBuildSHA1, TestBuild.BuildScriptUrl);
+
+            Assert.NotNull(queueItem);
+            Assert.False(queueItem.BuildSucceded.Value);
+
+            fixture = new BuildQueue(client, cache);
+            var result = await fixture.GetBuildOutput(queueItem.BuildId);
+
+            Assert.True(result.Item1.Contains("Didn't work lol"));
+            Assert.NotEqual(0, result.Item2);
+        }
+
+        [Fact]
+        public void BuildsThatSucceedShouldBeRecorded()
+        {
+            throw new NotImplementedException();
+        }
         [Fact]
         public void PausingTheQueueShouldntLoseBuilds()
         {
