@@ -13,6 +13,15 @@ using ReactiveUI;
 
 namespace Peasant.Models.Tests
 {
+    public static class TestBuild
+    {
+        public const string RepoUrl = "https://github.com/paulcbetts/peasant";
+        public const string BuildScriptUrl = "https://github.com/paulcbetts/peasant/blob/master/script/cibuild.ps1";
+
+        public const string PassingBuildSHA1 = "46c20227bb08185215f5b3d9519297142873b261";
+        public const string FailingBecauseOfMsbuildSHA1 = "46c20227bb08185215f5b3d9519297142873b261";
+    }
+
     public class BuildQueueTests
     {
         [Fact]
@@ -23,7 +32,7 @@ namespace Peasant.Models.Tests
 
             var fixture = new BuildQueue(client, cache);
             using (fixture.Start()) {
-                var result = await fixture.Enqueue("https://github.com/paulcbetts/peasant", "46c20227bb08185215f5b3d9519297142873b261", "https://github.com/paulcbetts/peasant/blob/master/script/cibuild.ps1"); { }
+                var result = await fixture.Enqueue(TestBuild.RepoUrl, TestBuild.PassingBuildSHA1, TestBuild.BuildScriptUrl);
             }
         }
 
@@ -50,9 +59,9 @@ namespace Peasant.Models.Tests
             var fixture = new BuildQueue(client, cache);
             var result = await fixture.ProcessSingleBuild(new BuildQueueItem() {
                 BuildId = 1,
-                BuildScriptUrl = "https://github.com/paulcbetts/peasant/blob/master/script/cibuild.ps1",
-                RepoUrl = "https://github.com/paulcbetts/peasant",
-                SHA1 = "46c20227bb08185215f5b3d9519297142873b261",
+                BuildScriptUrl = TestBuild.BuildScriptUrl,
+                RepoUrl = TestBuild.RepoUrl,
+                SHA1 = TestBuild.PassingBuildSHA1,
             }, stdout);
 
             var output = allLines.Aggregate(new StringBuilder(), (acc, x) => { acc.AppendLine(x); return acc; }).ToString();
@@ -79,9 +88,9 @@ namespace Peasant.Models.Tests
                 // up properly, so MSBuild is missing a ton of assemblies
                 result = await fixture.ProcessSingleBuild(new BuildQueueItem() {
                     BuildId = 1,
-                    BuildScriptUrl = "https://github.com/paulcbetts/peasant/blob/master/script/cibuild.ps1",
-                    RepoUrl = "https://github.com/paulcbetts/peasant",
-                    SHA1 = "c72ce8cdb6729a71bbfceebfdc6c1f22dca3ce2c",
+                    BuildScriptUrl = TestBuild.BuildScriptUrl,
+                    RepoUrl = TestBuild.RepoUrl,
+                    SHA1 = TestBuild.FailingBecauseOfMsbuildSHA1,
                 }, stdout);
             } catch (Exception ex) {
                 Console.WriteLine(ex.ToString());
@@ -93,8 +102,6 @@ namespace Peasant.Models.Tests
 
             Assert.False(shouldDie);
         }
-
-
 
         [Fact]
         public void PausingTheQueueShouldntLoseBuilds()
