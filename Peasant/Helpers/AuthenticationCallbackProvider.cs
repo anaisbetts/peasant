@@ -15,6 +15,10 @@ namespace Peasant.Helpers
     {
         public dynamic Process(NancyModule nancyModule, AuthenticateCallbackData model)
         {
+            if (model.Exception != null) {
+                return new RedirectResponse("/bouncercat");
+            }
+
             var sessionKey = "Session_" + model.AuthenticatedClient.AccessToken.PublicToken;
             BlobCache.Secure.InsertObject(sessionKey, model.AuthenticatedClient, TimeSpan.FromDays(1)).First();
 

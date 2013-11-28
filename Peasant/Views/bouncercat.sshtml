@@ -1,0 +1,1 @@
+﻿<center><img src="@Path['~/Content/bouncer.jpg']"></center>

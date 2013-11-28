@@ -36,8 +36,11 @@ namespace Peasant
                 var user = await ensureAuthenticated(Context);
                 if (user == null) return new RedirectResponse("/authentication/redirect/github");
 
-
                 return View["index"];
+            };
+
+            Get["/bouncercat"] = (rq) => {
+                return View["bouncercat"];
             };
 
             Post["/post-receive", runAsync: true] = async (rq, ct) => {
